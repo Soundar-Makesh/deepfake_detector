@@ -1,10 +1,7 @@
 import torch
-import cv2
-import numpy as np
 import os
-import mediapipe as mp
-from PIL import Image
-from transformers import ViTForImageClassification, ViTImageProcessor
+from .model import DeepfakeModel
+from ..core_ml.preprocess import process_video
 
 class DeepfakeEngine:
     _instance = None
@@ -17,113 +14,60 @@ class DeepfakeEngine:
 
     def _initialize(self):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        print(f"[Engine] Booting up ViT Deepfake Detector on {self.device}...")
+        print(f"[Engine] Booting up ML architecture on {self.device}...")
         
-        model_name = "prithivMLmods/Deep-Fake-Detector-v2-Model"
-        self.model = ViTForImageClassification.from_pretrained(model_name).to(self.device)
-        self.processor = ViTImageProcessor.from_pretrained(model_name)
+        self.model = DeepfakeModel().to(self.device)
+        model_path = os.path.join(os.path.dirname(__file__), "..", "models", "deepfake_mvp.pth")
+        
+        if os.path.exists(model_path):
+            self.model.load_state_dict(torch.load(model_path, map_location=self.device, weights_only=True))
+            print(f"[Engine] Weights loaded from {model_path}. Ready for inference.")
+            self.is_ready = True
+        else:
+            print(f"[Engine] ERROR: Model weights not found at {model_path}")
+            self.is_ready = False
+            
         self.model.eval()
-        self.is_ready = True
-        
-        # Cache label mapping
-        self.label_map = self.model.config.id2label
-        print(f"[Engine] ViT model loaded. Labels: {self.label_map}")
-        print(f"[Engine] Ready for inference on {self.device}.")
-        
-        # MediaPipe face detection
-        self.face_detection = mp.solutions.face_detection.FaceDetection(
-            model_selection=1, min_detection_confidence=0.5
-        )
-
-    def _extract_face(self, frame_bgr):
-        """Detect and crop face from a BGR frame. Returns PIL Image or None."""
-        frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-        results = self.face_detection.process(frame_rgb)
-        
-        if not results.detections:
-            return None
-            
-        detection = results.detections[0]
-        bbox = detection.location_data.relative_bounding_box
-        h, w, _ = frame_bgr.shape
-        
-        x1 = max(0, int(bbox.xmin * w))
-        y1 = max(0, int(bbox.ymin * h))
-        x2 = min(w, int((bbox.xmin + bbox.width) * w))
-        y2 = min(h, int((bbox.ymin + bbox.height) * h))
-        
-        if x2 - x1 < 20 or y2 - y1 < 20:
-            return None
-            
-        face_crop = frame_rgb[y1:y2, x1:x2]
-        return Image.fromarray(face_crop)
 
     def predict(self, video_path):
         if not self.is_ready:
-            return {"error": "Model failed to load."}
+            return {"error": "Model weights are missing. Please ensure deepfake_mvp.pth exists."}
 
-        cap = cv2.VideoCapture(video_path)
-        if not cap.isOpened():
-            return {"error": "Could not open video file."}
-            
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        if total_frames < 5:
-            cap.release()
-            return {"error": "Video is too short for analysis."}
-
-        # Sample 10 frames spread across the video
-        sample_positions = [int(total_frames * p) for p in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.85, 0.9]]
+        offsets = [0.15, 0.33, 0.50, 0.66, 0.85]
+        all_probs = []
         
-        fake_scores = []
-        
-        for pos in sample_positions:
-            cap.set(cv2.CAP_PROP_POS_FRAMES, pos)
-            ret, frame = cap.read()
-            if not ret:
+        for offset in offsets:
+            frames, fft_scores = process_video(video_path, num_frames=10, start_percent=offset)
+            if frames is None:
                 continue
                 
-            face_img = self._extract_face(frame)
-            if face_img is None:
-                continue
-            
-            # Process with ViT
-            inputs = self.processor(images=face_img, return_tensors="pt").to(self.device)
+            frames = frames.unsqueeze(0).to(self.device, non_blocking=True)
+            fft_scores = fft_scores.unsqueeze(0).to(self.device, non_blocking=True)
             
             with torch.inference_mode():
-                outputs = self.model(**inputs)
-                probs = torch.softmax(outputs.logits, dim=1)
-            
-            # Find the "Deepfake" class probability
-            fake_prob = 0.0
-            for idx, label in self.label_map.items():
-                if "fake" in str(label).lower() or "deepfake" in str(label).lower():
-                    fake_prob = probs[0][int(idx)].item()
-                    break
-            
-            fake_scores.append(fake_prob)
+                with torch.amp.autocast(device_type=self.device.type, enabled=self.device.type == 'cuda'):
+                    logit = self.model(frames, fft_scores)
+                    prob = torch.sigmoid(logit).item()
+                    all_probs.append(prob)
+
+        if not all_probs:
+            return {"error": "Could not detect a clear face anywhere in the video sequence."}
         
-        cap.release()
+        avg_prob = sum(all_probs) / len(all_probs)
+        print(f"[Forensics] Scans: {[round(p, 3) for p in all_probs]} | Avg: {avg_prob:.4f}")
         
-        if not fake_scores:
-            return {"error": "Could not detect a clear face in any frame of the video."}
-        
-        # Diagnostic logging
-        avg_fake = sum(fake_scores) / len(fake_scores)
-        print(f"[Forensics] Per-frame fake scores: {[round(s, 3) for s in fake_scores]} | Avg: {avg_fake:.4f}")
-        
-        # Simple honest classification
-        if avg_fake > 0.5:
+        if avg_prob > 0.5:
             prediction = "FAKE"
-            display_confidence = avg_fake
+            display_confidence = avg_prob
         else:
             prediction = "REAL"
-            display_confidence = 1.0 - avg_fake
+            display_confidence = 1.0 - avg_prob
             
         return {
             "prediction": prediction,
             "confidence": round(display_confidence * 100, 2),
-            "raw_probability": round(avg_fake, 4),
-            "frames_analyzed": len(fake_scores)
+            "raw_probability": round(avg_prob, 4),
+            "scanned_sequences": len(all_probs)
         }
 
 ml_engine = DeepfakeEngine()
