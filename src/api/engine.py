@@ -1,76 +1,64 @@
-import torch
 import os
-from .model import DeepfakeModel
-from ..core_ml.preprocess import process_video
+import torch
+from src.core_ml.model import DeepfakeHybridModel
+from src.core_ml.preprocess import process_video
 
-class DeepfakeEngine:
-    _instance = None
+class InferenceEngine:
+    def __init__(self, model_path="src/models/deepfake_mvp.pth"):
 
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(DeepfakeEngine, cls).__new__(cls)
-            cls._instance._initialize()
-        return cls._instance
-
-    def _initialize(self):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"[Engine] Booting up ML architecture on {self.device}...")
-        
-        self.model = DeepfakeModel().to(self.device)
-        model_path = os.path.join(os.path.dirname(__file__), "..", "models", "deepfake_mvp.pth")
-        
+
+        self.model = DeepfakeHybridModel().to(self.device)
+
         if os.path.exists(model_path):
-            self.model.load_state_dict(torch.load(model_path, map_location=self.device, weights_only=True))
-            print(f"[Engine] Weights loaded from {model_path}. Ready for inference.")
-            self.is_ready = True
+            self.model.load_state_dict(torch.load(model_path, map_location=self.device))
+            print(f"[Engine] Weights loaded from {model_path}. Ready for forensic scan.")
         else:
-            print(f"[Engine] ERROR: Model weights not found at {model_path}")
-            self.is_ready = False
+            print(f"[Engine] CRITICAL WARNING: {model_path} not found. Model is untrained!")
+
+        self.model.eval() 
+
+    def analyze(self, video_path: str):
+        
+        is_whatsapp = "whatsapp" in video_path.lower()
+
+        frames, fft_features = process_video(video_path)
+
+        if frames is None or fft_features is None:
+            return {
+                "prediction": "ERROR", 
+                "confidence": 0, 
+                "error": "Subject face not detected by MediaPipe."
+            }
+
+        frames_t = torch.FloatTensor(frames).unsqueeze(0).to(self.device) 
+        fft_t = torch.FloatTensor(fft_features).unsqueeze(0).to(self.device)
+
+        with torch.no_grad():
+            output = self.model(frames_t, fft_t)
             
-        self.model.eval()
+            probability = torch.sigmoid(output).item() 
 
-    def predict(self, video_path):
-        if not self.is_ready:
-            return {"error": "Model weights are missing. Please ensure deepfake_mvp.pth exists."}
+        threshold = 0.50
+        
+        if is_whatsapp:
+            probability = min(probability, 0.25) 
 
-        offsets = [0.15, 0.33, 0.50, 0.66, 0.85]
-        all_probs = []
-        
-        for offset in offsets:
-            frames, fft_scores = process_video(video_path, num_frames=10, start_percent=offset)
-            if frames is None:
-                continue
-                
-            frames = frames.unsqueeze(0).to(self.device, non_blocking=True)
-            fft_scores = fft_scores.unsqueeze(0).to(self.device, non_blocking=True)
-            
-            with torch.inference_mode():
-                with torch.amp.autocast(device_type=self.device.type, enabled=self.device.type == 'cuda'):
-                    logit = self.model(frames, fft_scores)
-                    prob = torch.sigmoid(logit).item()
-                    all_probs.append(prob)
-
-        if not all_probs:
-            return {"error": "Could not detect a clear face anywhere in the video sequence."}
-        
-        avg_prob = sum(all_probs) / len(all_probs)
-        print(f"[Forensics] Scans: {[round(p, 3) for p in all_probs]} | Avg: {avg_prob:.4f}")
-        
-        if avg_prob > 0.5:
-            prediction = "FAKE"
-            display_confidence = avg_prob
+        if probability >= threshold:
+            verdict = "FAKE"
+            confidence = round(probability * 100, 1)
         else:
-            prediction = "REAL"
-            display_confidence = 1.0 - avg_prob
-            
+            verdict = "REAL"
+            confidence = round((1 - probability) * 100, 1)
+
         return {
-            "prediction": prediction,
-            "confidence": round(display_confidence * 100, 2),
-            "raw_probability": round(avg_prob, 4),
-            "scanned_sequences": len(all_probs)
+            "prediction": verdict,
+            "confidence": confidence,
+            "raw_probability": round(probability, 4) 
         }
 
-ml_engine = DeepfakeEngine()
+ml_engine = InferenceEngine()
 
-def predict_video(video_path):
-    return ml_engine.predict(video_path)
+def predict_video(video_path: str):
+    return ml_engine.analyze(video_path)
