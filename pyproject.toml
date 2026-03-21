@@ -1,0 +1,27 @@
+[project]
+name = "deepfake-detector"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.135.1",
+    "mediapipe==0.10.11",
+    "numpy>=2.4.3",
+    "opencv-python>=4.13.0.92",
+    "pandas>=3.0.1",
+    "python-multipart>=0.0.22",
+    "torch==2.5.1",
+    "torchvision==0.20.1",
+    "tqdm>=4.67.3",
+    "uvicorn>=0.42.0",
+]
+
+[[tool.uv.index]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cu121"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch" }
+torchvision = { index = "pytorch" }

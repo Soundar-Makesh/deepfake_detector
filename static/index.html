@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deepfake Video Detection | Forensic Analysis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="/style.css">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        deep: '#0B0F19',
+                        surface: '#121A2F',
+                        primary: '#6366F1',
+                        accent: '#06B6D4',
+                        fake: '#F43F5E',
+                        real: '#10B981'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Outfit', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;800&display=swap"
+        rel="stylesheet">
+</head>
+
+<body
+    class="bg-deep text-slate-200 min-h-screen flex items-center justify-center p-6 sm:p-12 overflow-x-hidden font-sans selection:bg-primary/30">
+
+    <!-- Dynamic Animated Background -->
+    <div class="fixed inset-0 overflow-hidden pointer-events-none -z-10">
+        <div
+            class="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-primary/20 rounded-full blur-[150px] animate-pulse-slow">
+        </div>
+        <div
+            class="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-accent/20 rounded-full blur-[120px] animate-pulse-slow object-delay">
+        </div>
+    </div>
+
+    <div class="max-w-2xl w-full z-10 flex flex-col gap-10 opacity-0 animate-fade-in"
+        style="animation-delay: 0.2s; animation-fill-mode: forwards;">
+        <!-- Header -->
+        <header class="text-center space-y-4">
+            <h1 class="text-5xl md:text-6xl font-display font-extrabold tracking-tight text-white drop-shadow-lg">
+                Deepfake<span
+                    class="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">Detection</span>
+            </h1>
+        </header>
+
+        <!-- Main Card -->
+        <main class="glass-panel rounded-3xl p-8 md:p-10 relative overflow-hidden shadow-2xl shadow-primary/10">
+            <!-- Scanning Laser -->
+            <div id="scanner"
+                class="absolute left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary to-transparent shadow-[0_0_20px_#6366F1] hidden z-50 rounded-full">
+            </div>
+
+            <form id="uploadForm" class="space-y-8">
+                <!-- Drop Zone -->
+                <div id="dropZone"
+                    class="relative group border-2 border-dashed border-slate-700/50 rounded-2xl p-10 text-center transition-all duration-300 ease-out hover:border-primary/50 hover:bg-primary/5 cursor-pointer bg-white/[0.02]">
+                    <input type="file" id="videoInput"
+                        class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                        accept="video/mp4,video/x-msvideo,video/quicktime">
+
+                    <div
+                        class="space-y-4 pointer-events-none transform transition-transform duration-300 group-hover:-translate-y-1">
+                        <div
+                            class="w-16 h-16 mx-auto bg-slate-800/50 rounded-2xl flex items-center justify-center shadow-inner group-hover:bg-primary/20 transition-colors duration-300">
+                            <i data-lucide="upload-cloud" id="uploadIcon"
+                                class="w-8 h-8 text-slate-400 group-hover:text-primary transition-colors duration-300"></i>
+                        </div>
+                        <div>
+                            <p id="uploadText" class="text-slate-200 font-medium text-lg">Drag & drop video clip here
+                            </p>
+                            <p class="text-sm text-slate-500 mt-1 pb-1">or click to browse local files</p>
+                        </div>
+                        <div
+                            class="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-slate-900/50 text-[11px] text-slate-400 uppercase tracking-widest font-medium">
+                            <span>MP4 • AVI • MOV</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Button -->
+                <button type="submit" id="analyzeBtn"
+                    class="w-full relative py-4 px-6 bg-gradient-to-r from-primary to-accent hover:from-indigo-500 hover:to-cyan-400 text-white font-bold rounded-xl overflow-hidden shadow-lg shadow-primary/25 transition-all outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-deep group disabled:opacity-50 disabled:cursor-not-allowed">
+                    <div
+                        class="absolute inset-0 w-full h-full bg-white/20 scale-x-0 group-hover:scale-x-100 origin-left transition-transform duration-500 ease-out">
+                    </div>
+                    <div class="relative flex items-center justify-center gap-2 z-10 text-base tracking-wide">
+                        <span id="btnText">INITIATE ANALYSIS</span>
+                        <i data-lucide="scan-line" id="btnIcon" class="w-5 h-5 ml-1"></i>
+                    </div>
+                </button>
+            </form>
+
+            <!-- Results Section -->
+            <section id="resultBox"
+                class="mt-8 pt-8 border-t border-slate-800/50 hidden opacity-0 transition-opacity duration-700 ease-out">
+                <div class="flex flex-col md:flex-row items-start md:items-end justify-between gap-6 mb-8">
+                    <div class="space-y-1">
+                        <p class="text-[10px] text-slate-500 uppercase tracking-widest font-semibold ml-1">System
+                            Verdict</p>
+                        <div class="flex items-center gap-3">
+                            <div id="verdictIconBox"
+                                class="w-10 h-10 rounded-full flex items-center justify-center bg-slate-800">
+                                <i data-lucide="shield-check" id="verdictIcon" class="w-5 h-5"></i>
+                            </div>
+                            <h2 id="verdictText"
+                                class="text-5xl font-display font-bold uppercase tracking-tight text-white drop-shadow-sm">
+                                ---</h2>
+                        </div>
+                    </div>
+
+                    <div class="md:text-right w-full md:w-auto">
+                        <p class="text-[10px] text-slate-500 uppercase tracking-widest font-semibold mb-1">Confidence
+                            Score</p>
+                        <div class="flex items-baseline md:justify-end gap-1">
+                            <h2 id="confidenceText" class="text-4xl font-display font-bold text-white">0</h2>
+                            <span class="text-2xl text-slate-400 font-medium">%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="w-full bg-slate-900 rounded-full h-2.5 mb-2 overflow-hidden shadow-inner relative">
+                    <div id="confidenceBar"
+                        class="h-2.5 rounded-full transition-all duration-1000 ease-out w-0 relative overflow-hidden">
+                        <div class="absolute inset-0 bg-white/20 w-full h-full animate-[shimmer_2s_infinite]"></div>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center text-xs text-slate-500 font-medium px-1">
+                    <span>Uncertain</span>
+                    <span>High Probability</span>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="flex justify-between items-center px-2 text-[11px] text-slate-600 font-medium tracking-wide">
+            <span class="flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                API Status: Online
+            </span>
+            <span class="flex items-center gap-3">
+                <span>Inference Latency: <span id="latency" class="text-slate-400">-- ms</span></span>
+            </span>
+        </footer>
+    </div>
+
+    <script src="/script.js"></script>
+</body>
+
+</html>
