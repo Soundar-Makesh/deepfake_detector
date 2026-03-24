@@ -12,7 +12,7 @@ class InferenceEngine:
         self.model = DeepfakeHybridModel().to(self.device)
 
         if os.path.exists(model_path):
-            self.model.load_state_dict(torch.load(model_path, map_location=self.device))
+            self.model.load_state_dict(torch.load(model_path, map_location=self.device, weights_only=True))
             print(f"[Engine] Weights loaded from {model_path}. Ready for forensic scan.")
         else:
             print(f"[Engine] CRITICAL WARNING: {model_path} not found. Model is untrained!")
@@ -62,3 +62,4 @@ ml_engine = InferenceEngine()
 
 def predict_video(video_path: str):
     return ml_engine.analyze(video_path)
+

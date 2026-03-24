@@ -1,0 +1,11 @@
+SENTRY AI EVALUATION REPORT
+Average Latency: 0.442s
+
+              precision    recall  f1-score   support
+
+    REAL (0)       0.87      0.86      0.86        76
+    FAKE (1)       0.96      0.97      0.96       298
+
+    accuracy                           0.94       374
+   macro avg       0.91      0.91      0.91       374
+weighted avg       0.94      0.94      0.94       374
