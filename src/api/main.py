@@ -2,7 +2,8 @@ import os
 import shutil
 import uuid
 import torch
-from fastapi import FastAPI, UploadFile, File, HTTPException
+import datetime
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.concurrency import run_in_threadpool
@@ -29,6 +30,17 @@ async def health_check():
         "status": "online",
         "device": "RTX 3050" if cuda_available else "CPU (Fallback)",
         "cuda": cuda_available
+    }
+
+@app.get("/api/info")
+async def api_info():
+    """Deployment API endpoint providing system metadata (R9)"""
+    return {
+        "api_version": "1.0",
+        "model_architecture": "DeepfakeHybridModel",
+        "deployment_status": "Production",
+        "environment": "CUDA" if torch.cuda.is_available() else "CPU",
+        "supported_formats": ["mp4", "avi", "mov"]
     }
 
 @app.post("/api/predict")
@@ -62,5 +74,27 @@ async def run_prediction(video: UploadFile = File(...)):
                 os.remove(file_path)
             except Exception as e:
                 print(f"[Cleanup Error] Could not delete {file_path}: {e}")
+
+@app.post("/api/feedback")
+async def submit_feedback(true_label: str = Form(...), video: UploadFile = File(...)):
+    """Continuous Dataset Update endpoint (R10)"""
+    if true_label not in ["REAL", "FAKE"]:
+        raise HTTPException(status_code=400, detail="true_label must be REAL or FAKE")
+        
+    dataset_dir = os.path.join("data", "raw", true_label)
+    os.makedirs(dataset_dir, exist_ok=True)
+    
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    unique_filename = f"{timestamp}_{uuid.uuid4().hex[:8]}_{video.filename}"
+    file_path = os.path.join(dataset_dir, unique_filename)
+    
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(video.file, buffer)
+        
+        return {"status": "success", "message": f"Dataset updated with {true_label} video.", "dataset_path": file_path}
+    except Exception as e:
+        print(f"[Feedback Error] {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to save dataset update.")
 
 app.mount("/", StaticFiles(directory="static", html=True), name="static")

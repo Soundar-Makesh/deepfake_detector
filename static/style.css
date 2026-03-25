@@ -1,8 +1,25 @@
 /* Custom Animations & Styles outside of Tailwind */
 
+body {
+    background-color: #0B0E14;
+}
+
+/* Setup custom grid background pattern */
+.bg-grid-pattern {
+    background-image: linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+                      linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    background-size: 32px 32px;
+}
+
 @keyframes pulse-slow {
-    0%, 100% { opacity: 0.3; transform: scale(1); }
-    50% { opacity: 0.6; transform: scale(1.05); }
+    0%, 100% {
+        opacity: 0.3;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.6;
+        transform: scale(1.05);
+    }
 }
 
 .animate-pulse-slow {
@@ -14,8 +31,14 @@
 }
 
 @keyframes fade-in {
-    from { opacity: 0; transform: translateY(15px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(15px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .animate-fade-in {
@@ -29,32 +52,41 @@
 
 /* Glass panel effect */
 .glass-panel {
-    background: rgba(18, 26, 47, 0.6);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(24, 27, 40, 0.7);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
 }
 
-/* Scanner Animation */
-@keyframes scan {
-    0% { top: 0%; opacity: 0; }
-    10% { opacity: 1; }
-    90% { opacity: 1; }
-    100% { top: 100%; opacity: 0; }
-}
-
-.scanner-active {
-    display: block !important;
-    animation: scan 2.5s ease-in-out infinite;
-}
-
-/* Drag state overrides */
+/* Custom Drag Zone overrides */
 .drop-zone-active {
-    border-color: #6366F1 !important;
-    background: rgba(99, 102, 241, 0.1) !important;
+    border-color: #4AA9FF !important;
+    background: rgba(74, 169, 255, 0.08) !important;
     transform: scale(0.99);
 }
+
 .drop-zone-active #uploadIcon {
-    color: #6366F1;
+    color: #4AA9FF;
     transform: translateY(-4px);
+}
+
+/* Frame Blocks animations */
+.frame-block {
+    opacity: 0;
+    animation: block-reveal 0.3s ease-out forwards;
+}
+
+@keyframes block-reveal {
+    from {
+        opacity: 0;
+        transform: scaleY(0.5);
+    }
+    to {
+        opacity: 1;
+        transform: scaleY(1);
+    }
+}
+
+/* Signal progress bars */
+.signal-bar-fill {
+    transition: width 1.5s cubic-bezier(0.22, 1, 0.36, 1);
 }
